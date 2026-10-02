@@ -1,0 +1,17 @@
+{
+  "name": "markdown-journal-audit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "demo": "node scripts/make-demo.js",
+    "benchmark": "node scripts/benchmark.js"
+  },
+  "dependencies": {
+    "markdown-it": "^15.0.2",
+    "markdown-it-task-lists": "^2.1.1",
+    "yaml": "^2.8.1"
+  }
+}

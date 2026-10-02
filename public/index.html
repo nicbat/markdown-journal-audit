@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#e8eef2">
+  <title>Journal Audit</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <script type="module" src="/assets/app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Journal Audit home"><span class="brand-mark">J</span><span>Journal Audit</span></a>
+      <div class="top-context" id="folder-label">Choose a journal folder to begin</div>
+      <div class="top-actions"><button class="icon-button" id="undo" title="Undo last review action" disabled>↶ <span>Undo</span></button><button class="icon-button" id="settings-open" title="Folder and status settings">⚙ <span>Settings</span></button></div>
+    </header>
+    <main class="workspace">
+      <aside class="queue-panel" aria-label="Journal queue">
+        <div class="queue-heading"><div><h1>Review queue</h1><p id="queue-count">No journals loaded</p></div><button class="plain-button" id="refresh" title="Rescan folder">↻</button></div>
+        <div class="progress-block"><div class="progress-line"><span id="progress-label">0 reviewed</span><span id="progress-ratio">0%</span></div><div class="progress-track"><span id="progress-fill"></span></div><div class="progress-breakdown" id="progress-breakdown"></div></div>
+        <section class="status-overview" aria-labelledby="status-overview-title"><h2 id="status-overview-title">Files by status</h2><dl id="status-counts" class="status-counts"></dl></section>
+        <div class="filter-row" role="group" aria-label="Filter queue"><button data-filter="all" class="filter active">All</button><button data-filter="unreviewed" class="filter">To review</button><button data-filter="completed" class="filter">Completed</button><button data-filter="skipped" class="filter">Skipped</button></div>
+        <nav class="queue-list" id="queue-list"></nav>
+      </aside>
+      <section class="reading-area" aria-label="Journal reading area">
+        <div class="empty-state" id="empty-state"><div class="empty-glyph">⌕</div><h2>Make room for a closer read</h2><p>Choose the folder with your Markdown journals. The audit status is saved in each file’s YAML frontmatter.</p><button class="primary-button" id="setup-open">Choose folders</button></div>
+        <article class="journal-sheet hidden" id="journal-sheet">
+          <div class="journal-head"><div class="journal-date" id="journal-date"></div><div class="journal-title-row"><h2 id="journal-title"></h2><button class="source-toggle" id="source-toggle">View source</button></div><div class="journal-path" id="journal-path"></div></div>
+          <div class="notice hidden" id="file-error"></div>
+          <div class="markdown-body" id="markdown-body"></div>
+          <pre class="source-body hidden" id="source-body"></pre>
+        </article>
+        <footer class="action-dock hidden" id="action-dock"><div class="comment-entry"><label for="audit-note">Review note · N to focus, Enter to leave</label><input id="audit-note" type="text" maxlength="4000" placeholder="Add a note to this journal…"></div><div class="action-buttons" id="action-buttons"></div></footer>
+      </section>
+      <aside class="details-panel" id="details-panel" aria-label="Journal details"><div class="details-sticky"><h2>On this page</h2><div class="detail-stat"><span>Words</span><strong id="word-count">—</strong></div><div class="detail-stat"><span>Links out</span><strong id="outgoing-count">—</strong></div><div class="detail-stat"><span>Links in</span><strong id="incoming-count">—</strong></div><section class="link-section"><h3>Outgoing links</h3><div id="outgoing-links" class="link-list"></div></section><div class="navigation"><button id="previous" class="nav-button">← Previous</button><button id="next" class="nav-button">Next →</button></div><div class="key-hint"><span>1—9</span> set review status <span>← →</span> move <span>N</span> note <span>U</span> undo</div></div></aside>
+    </main>
+  </div>
+  <dialog id="settings-dialog" class="settings-dialog">
+    <form id="settings-form" method="dialog">
+      <div class="dialog-top"><div><h2>Folder settings</h2><p>Your folder paths and statuses stay on this computer.</p></div><button type="button" class="close-button" id="settings-close" aria-label="Close settings">×</button></div>
+      <label class="field-label" for="journal-folder">Journal folder path</label><input class="text-field" id="journal-folder" placeholder="/Users/you/Vault/Journal" required>
+      <label class="field-label" for="vault-folder">Vault root <span>optional, for links from other folders</span></label><input class="text-field" id="vault-folder" placeholder="Leave blank to index only the journal folder">
+      <div class="status-heading"><div><h3>Review statuses</h3><p>Number keys follow this order. Up to 9.</p></div><button type="button" id="add-status" class="plain-button">+ Add</button></div>
+      <div id="status-editor" class="status-editor"></div>
+      <div class="dialog-error" id="settings-error"></div><div class="dialog-actions"><button type="button" class="secondary-button" id="settings-cancel">Cancel</button><button type="submit" class="primary-button">Save folders</button></div>
+    </form>
+  </dialog>
+  <div class="toast" id="toast" role="status"></div>
+</body>
+</html>
