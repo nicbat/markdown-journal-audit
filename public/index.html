@@ -22,6 +22,7 @@
         <section class="status-overview" aria-labelledby="status-overview-title"><h2 id="status-overview-title">Files by status</h2><div id="status-counts" class="status-counts" role="group" aria-label="Filter by status"></div></section>
         <div class="filter-row" role="group" aria-label="Filter queue"><button data-filter="all" class="filter active">All</button><button data-filter="unreviewed" class="filter">To review</button><button data-filter="completed" class="filter">Completed</button><button data-filter="skipped" class="filter">Skipped</button></div>
         <p id="queue-view" class="queue-view"></p>
+        <section class="cleanup-progress" aria-label="Cleanup progress in this view"><strong id="cleanup-progress-label">Cleanup: 0 / 0 reviewed</strong><progress id="cleanup-progress-bar" value="0" max="1"></progress><button id="cleanup-next-pending" class="plain-button">Next unfinished cleanup →</button></section>
         <nav class="queue-list" id="queue-list"></nav>
       </aside>
       <section class="reading-area" aria-label="Journal reading area">
@@ -30,7 +31,7 @@
           <div class="journal-head"><div class="journal-date" id="journal-date"></div><div class="journal-title-row"><h2 id="journal-title"></h2><button class="source-toggle" id="source-toggle">View source</button></div><div class="journal-path" id="journal-path"></div></div>
           <div class="notice hidden" id="file-error"></div>
           <section id="cleanup-toolbar" class="cleanup-toolbar hidden" aria-label="Cleanup controls">
-            <div class="cleanup-actions"><strong id="cleanup-count"></strong><button id="cleanup-undo" class="secondary-button">Undo mark · U</button><button id="cleanup-preview" class="secondary-button">Preview cleaned journal</button></div>
+            <div class="cleanup-actions"><button id="cleanup-done" class="primary-button">Nothing to delete &amp; next</button><button id="cleanup-reopen" class="secondary-button hidden">Reopen cleanup</button><strong id="cleanup-count"></strong><button id="cleanup-undo" class="secondary-button">Undo mark · U</button><button id="cleanup-preview" class="secondary-button">Preview cleaned journal</button></div>
             <p id="cleanup-message" role="status"></p><button id="cleanup-reset" class="secondary-button hidden">Discard outdated marks</button>
           </section>
           <div class="markdown-body hidden" id="cleanup-body"></div>

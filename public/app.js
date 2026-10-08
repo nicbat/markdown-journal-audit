@@ -61,6 +61,7 @@ function patchEntry(detail) {
   cacheDetail(detail);
   updateRow(summary);
   if (statusChanged) { updateProgress(); updateFilter(); }
+  else updateCleanupProgress();
 }
 async function loadDetail(relative) {
   if (state.details.has(relative)) return state.details.get(relative);
@@ -126,7 +127,7 @@ function updateRow(entry) {
   const status = statusFor(entry.metadata.audit_status);
   if (status) { row.dataset.status = status.key; row.style.setProperty('--item-color', status.color); }
   else { delete row.dataset.status; row.style.removeProperty('--item-color'); }
-  const sub = entry.error ? 'Frontmatter error' : `${entry.wordCount} words${status ? ` · ${status.label}` : ''}`;
+  const sub = entry.error ? 'Frontmatter error' : `${entry.wordCount} words${status ? ` · ${status.label}` : ''}${entry.cleanup?.reviewed ? ' · Cleanup ✓' : entry.cleanup?.stale ? ' · Cleanup changed' : entry.cleanup?.markCount ? ' · Cleanup started' : ''}`;
   const label = row.querySelector('.queue-sub');
   if (label.textContent !== sub) label.textContent = sub;
 }
@@ -161,7 +162,37 @@ function updateFilter(force = false) {
   for (const button of $('#status-counts').children) button.setAttribute('aria-pressed', String(button.dataset.categoryFilter === state.filter));
   const label = state.filter.startsWith('status:') ? (statusFor(state.filter.slice(7))?.label || state.filter.slice(7)) : ({ all: 'All journals', unreviewed: 'To review', completed: 'Completed', skipped: 'Skipped' }[state.filter]);
   $('#queue-view').textContent = `${label} · ${state.visible.length} files`;
+  updateCleanupProgress();
 }
+function updateCleanupProgress() {
+  const done = state.visible.filter(item => state.entries[item.index].cleanup?.reviewed).length;
+  const total = state.visible.length;
+  $('#cleanup-progress-label').textContent = `Cleanup: ${done} / ${total} reviewed`;
+  $('#cleanup-progress-bar').max = total || 1;
+  $('#cleanup-progress-bar').value = done;
+  $('#cleanup-next-pending').disabled = state.busy || done === total;
+}
+function nextCleanup() {
+  if (state.busy) return;
+  const at = state.positions.get(state.current) ?? -1;
+  for (let offset = 1; offset <= state.visible.length; offset++) {
+    const item = state.visible[(at + offset) % state.visible.length];
+    if (!state.entries[item.index].cleanup?.reviewed) {
+      cleanup.enable(); selectIndex(item.index); return;
+    }
+  }
+  toast('Cleanup complete for this view');
+}
+function cleanupUpdated(relative, data) {
+  const index = state.byRelative.get(relative);
+  if (index === undefined) return;
+  const summary = { reviewed: !!data.reviewed, markCount: data.marks.length, stale: data.stale };
+  state.entries[index].cleanup = summary;
+  const detail = state.details.get(relative);
+  if (detail) detail.cleanup = summary;
+  updateRow(state.entries[index]); updateCleanupProgress();
+}
+$('#cleanup-next-pending').addEventListener('click', nextCleanup);
 function drawLinks(entry) {
   $('#word-count').textContent = entry.wordCount.toLocaleString();
   $('#outgoing-count').textContent = entry.linkCount ?? entry.links?.length ?? 0;
@@ -205,6 +236,7 @@ function updateControls() {
   for (const button of $('#action-buttons').children) button.disabled = state.busy || !ready || !!entry.error || !entry.hash;
   $('#audit-note').disabled = state.busy || !ready;
   cleanup.updateControls();
+  updateCleanupProgress();
 }
 function draw() {
   const entry = currentEntry();
@@ -407,7 +439,7 @@ document.addEventListener('keydown', event => {
   if (event.key === 'ArrowLeft') { event.preventDefault(); nextVisible(-1); }
   if (event.key === 'ArrowRight') { event.preventDefault(); nextVisible(1); }
 });
-const cleanup = createCleanup({ api, toast, getEntry: currentEntry, isBusy: () => state.busy, setBusy: value => { state.busy = value; updateControls(); }, redraw: draw });
+const cleanup = createCleanup({ api, toast, onUpdate: cleanupUpdated, advance: nextCleanup, getEntry: currentEntry, isBusy: () => state.busy, setBusy: value => { state.busy = value; updateControls(); }, redraw: draw });
 (async function init() {
   try {
     state.config = await api('/api/config'); state.statuses = state.config.statuses;

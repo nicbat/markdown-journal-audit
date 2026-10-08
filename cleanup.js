@@ -100,14 +100,21 @@ export function removeMarked(body, blocks, marks) {
   return result + body.slice(at);
 }
 export function cleanupSource(source, record) {
-  if (!record?.marks?.length) return source;
+  if (!record?.marks?.length && !record?.reviewed) return source;
   const { parts } = parseMetadata(source);
   if (hashText(parts.body) !== record.bodyHash) throw conflict('Cleanup marks are stale. Re-review or reset this note before export.');
+  if (!record?.marks?.length) return source;
   const parsed = parseCleanup(parts.body);
   const cleaned = removeMarked(parts.body, parsed.blocks, record.marks);
   // A newly leading thematic break must not turn surviving journal text into YAML.
   const prefix = !parts.hasFrontmatter && /^(?:\uFEFF)?---\r?\n/.test(cleaned) ? parts.eol : '';
   return source.slice(0, source.length - parts.body.length) + prefix + cleaned;
+}
+
+export function cleanupSummary(record, bodyHash) {
+  const markCount = record?.marks?.length ?? 0;
+  const stale = !!(markCount || record?.reviewed) && record.bodyHash !== bodyHash;
+  return { reviewed: record?.reviewed === true && !stale, markCount, stale };
 }
 
 export class CleanupStore {
@@ -119,6 +126,10 @@ export class CleanupStore {
     this.cache.set(hash, parsed);
     if (this.cache.size > 32) this.cache.delete(this.cache.keys().next().value);
     return parsed;
+  }
+  async summaries(root, entries, bodyHashFor) {
+    const manifest = await readCleanupManifest(this.dataDir, root);
+    return entries.map(entry => ({ ...entry, cleanup: cleanupSummary(Object.hasOwn(manifest.files, entry.relative) ? manifest.files[entry.relative] : null, bodyHashFor(entry.relative)) }));
   }
   async detail(root, relative, payload) {
     // Shared data directories may be served by multiple local app instances.
@@ -143,13 +154,14 @@ export class CleanupStore {
     const parsed = this.parse(body);
     const manifest = await readCleanupManifest(this.dataDir, root);
     let record = Object.hasOwn(manifest.files, relative) ? manifest.files[relative] : null;
-    let stale = !!record?.marks?.length && record.bodyHash !== parsed.bodyHash;
+    let stale = cleanupSummary(record, parsed.bodyHash).stale;
     if (payload) {
       if (payload.bodyHash !== parsed.bodyHash || payload.revision !== (record?.revision ?? 0)) throw conflict('This note or its cleanup marks changed. Reload before marking.');
       if (stale && !payload.reset) throw conflict('Cleanup marks are stale. Reset them before marking this changed note.');
       if (payload.reset && (!Array.isArray(payload.marks) || payload.marks.length)) throw new Error('Reset requires an empty selection.');
+      if (payload.reviewed !== undefined && typeof payload.reviewed !== 'boolean') throw new Error('Reviewed must be true or false.');
       markedRanges(parsed.blocks, payload.marks);
-      record = { bodyHash: parsed.bodyHash, revision: (record?.revision ?? 0) + 1, marks: payload.marks.map(({ id, section }) => ({ id, section })) };
+      record = { bodyHash: parsed.bodyHash, reviewed: !payload.reset && payload.reviewed === true, revision: (record?.revision ?? 0) + 1, marks: payload.marks.map(({ id, section }) => ({ id, section })) };
       Object.defineProperty(manifest.files, relative, { value: record, enumerable: true, configurable: true, writable: true });
       const file = cleanupManifestPath(this.dataDir, root);
       await fs.mkdir(path.dirname(file), { recursive: true });
@@ -159,6 +171,6 @@ export class CleanupStore {
       stale = false;
     }
     const marks = record?.marks ?? [];
-    return { ...parsed, revision: record?.revision ?? 0, marks, stale, preview: stale ? null : this.md.render(removeMarked(body, parsed.blocks, marks)) };
+    return { ...parsed, revision: record?.revision ?? 0, marks, stale, reviewed: cleanupSummary(record, parsed.bodyHash).reviewed, preview: stale ? null : this.md.render(removeMarked(body, parsed.blocks, marks)) };
   }
 }

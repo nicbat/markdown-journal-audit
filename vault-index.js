@@ -53,6 +53,7 @@ export class VaultIndex {
     const file = {
       relative, fullPath, stamp, source, body, metadata, error,
       hash: error || !journal ? null : hashText(source),
+      bodyHash: error || !journal ? null : sameBody ? old.bodyHash : hashText(body),
       links: error ? [] : sameBody ? old.links : extractWikilinks(body),
       wordCount: !journal ? 0 : sameBody ? old.wordCount : (body.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) || []).length,
       rendered: sameBody ? old.rendered : undefined
@@ -104,6 +105,8 @@ export class VaultIndex {
       metadata: file.metadata, wordCount: file.wordCount, linkCount: file.links.length,
       incoming: this.incoming.get(file.fullPath)?.size || 0, error: file.error };
   }
+
+  bodyHash(relative) { return this.files.get(path.resolve(this.journalFolder, relative))?.bodyHash ?? null; }
 
   summaries() { return this.journals.map(key => this.summary(this.files.get(key))); }
 

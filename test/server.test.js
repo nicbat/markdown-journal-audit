@@ -46,9 +46,15 @@ test('summary/detail API, compact undo, cached conflict checks and external refr
   const cleanupSaved = await api('/api/cleanup', { relative: 'day.md', bodyHash: cleanupBefore.bodyHash, revision: cleanupBefore.revision, marks: [{ id: cleanupBefore.blocks[0].id, section: false }] });
   assert.equal(cleanupSaved.status, 200);
   assert.equal(cleanupSaved.data.revision, 1);
+  assert.deepEqual((await api('/api/entries')).data.entries[0].cleanup, { reviewed: false, markCount: 1, stale: false });
+  const completed = await api('/api/cleanup', { relative: 'day.md', bodyHash: cleanupSaved.data.bodyHash, revision: 1, marks: cleanupSaved.data.marks, reviewed: true });
+  assert.equal(completed.data.reviewed, true);
+  assert.deepEqual((await api('/api/reload', {})).data.entries[0].cleanup, { reviewed: true, markCount: 1, stale: false });
+
   assert.equal((await api('/api/cleanup', { relative: 'day.md', bodyHash: cleanupBefore.bodyHash, revision: 0, marks: [] })).status, 409);
   const saved = (await api('/api/action', { relative: 'day.md', hash: before.hash, status: 'keep', note: 'A note' })).data;
   assert.equal(saved.entry.metadata.audit_status, 'keep');
+  assert.equal(saved.entry.cleanup.reviewed, true);
   assert.equal((await api('/api/cleanup?relative=day.md')).data.stale, false);
   const exported = path.join(root, 'exported');
   await exportByField(journals, exported, 'audit_status', { dataDir: config });
@@ -67,6 +73,8 @@ test('summary/detail API, compact undo, cached conflict checks and external refr
   assert.equal((await api('/api/action', { relative: 'day.md', hash: undone.data.entry.hash, status: 'delete' })).status, 409);
   const staleCleanup = (await api('/api/cleanup?relative=day.md')).data;
   assert.equal(staleCleanup.stale, true);
+  assert.equal(staleCleanup.reviewed, false);
+  assert.deepEqual((await api('/api/entry?relative=day.md')).data.cleanup, { reviewed: false, markCount: 1, stale: true });
   assert.equal(staleCleanup.preview, null);
   assert.equal((await api('/api/cleanup', { relative: 'day.md', bodyHash: staleCleanup.bodyHash, revision: staleCleanup.revision, marks: [] })).status, 409);
   assert.equal((await api('/api/cleanup', { relative: 'day.md', bodyHash: staleCleanup.bodyHash, revision: staleCleanup.revision, marks: [], reset: true })).status, 200);

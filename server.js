@@ -65,6 +65,13 @@ function vaultIndex() {
   if (!index || index.journalFolder !== root || index.vaultFolder !== vault) index = new VaultIndex(root, vault, body => md.render(body));
   return index;
 }
+async function withCleanup(entries, current = vaultIndex()) {
+  return cleanup.summaries(baseFolder(), entries, relative => current.bodyHash(relative));
+}
+async function entryDetail(relative) {
+  const current = vaultIndex();
+  return (await withCleanup([await current.detail(relative)], current))[0];
+}
 function rememberUndo(filePath, hash, previous) {
   const token = crypto.randomUUID();
   undoRecords.set(token, { filePath, hash, previous });
@@ -114,10 +121,10 @@ const server = http.createServer(async (req, res) => {
     });
     if (url.pathname === '/api/entries' && req.method === 'GET') return await serialized(async () => {
       const current = vaultIndex();
-      send(res, 200, { entries: await current.rescan(), statuses: config.statuses });
+      send(res, 200, { entries: await withCleanup(await current.rescan(), current), statuses: config.statuses });
     });
     if (url.pathname === '/api/entry' && req.method === 'GET') return await serialized(async () => {
-      send(res, 200, await vaultIndex().detail(url.searchParams.get('relative')));
+      send(res, 200, await entryDetail(url.searchParams.get('relative')));
     });
     if (url.pathname === '/api/cleanup' && req.method === 'GET') return await serialized(async () => {
       send(res, 200, await cleanup.detail(baseFolder(), url.searchParams.get('relative')));
@@ -133,7 +140,7 @@ const server = http.createServer(async (req, res) => {
       const filePath = await resolveSafeFile(baseFolder(), payload.relative);
       const saved = await saveAudit({ filePath, expectedHash: payload.hash, status: status.key, note: String(payload.note ?? '').slice(0, 4000) });
       const undoToken = rememberUndo(filePath, saved.hash, saved.undo);
-      send(res, 200, { hash: saved.hash, undoToken, entry: await vaultIndex().detail(payload.relative) });
+      send(res, 200, { hash: saved.hash, undoToken, entry: await entryDetail(payload.relative) });
     });
     if (url.pathname === '/api/undo' && req.method === 'POST') return await serialized(async () => {
       const payload = await body(req);
@@ -142,10 +149,10 @@ const server = http.createServer(async (req, res) => {
       if (!record || record.filePath !== filePath || record.hash !== payload.hash) throw new Error('This Undo action has expired.');
       await undoAudit({ filePath, expectedHash: record.hash, previous: record.previous });
       undoRecords.delete(payload.undoToken);
-      send(res, 200, { entry: await vaultIndex().detail(payload.relative) });
+      send(res, 200, { entry: await entryDetail(payload.relative) });
     });
     if (url.pathname === '/api/reload' && req.method === 'POST') return await serialized(async () => {
-      send(res, 200, { entries: await vaultIndex().rescan(), statuses: config.statuses });
+      send(res, 200, { entries: await withCleanup(await vaultIndex().rescan()), statuses: config.statuses });
     });
     if (url.pathname === '/' || url.pathname.startsWith('/assets/')) {
       const filename = url.pathname === '/' ? 'index.html' : path.join('public', decodeURIComponent(url.pathname.slice('/assets/'.length)));

@@ -1,4 +1,4 @@
-export function createCleanup({ api, toast, setBusy, isBusy, getEntry, redraw }) {
+export function createCleanup({ api, toast, setBusy, isBusy, getEntry, redraw, onUpdate, advance }) {
   const $ = selector => document.querySelector(selector);
   let active = false, preview = false, sourceView = false, data = null, key = '', relative = '', sequence = 0, history = [], loading = false;
   let blocks = new Map(), painted = null;
@@ -14,6 +14,10 @@ export function createCleanup({ api, toast, setBusy, isBusy, getEntry, redraw })
     $('#cleanup-reset').classList.toggle('hidden', !data?.stale);
     $('#cleanup-reset').disabled = loading || busy;
     $('#cleanup-mode').disabled = busy;
+    $('#cleanup-done').disabled = loading || !data || data.stale || busy;
+    $('#cleanup-done').textContent = data?.reviewed ? 'Reviewed · next unfinished' : data?.marks.length ? 'Done & next' : 'Nothing to delete & next';
+    $('#cleanup-reopen').classList.toggle('hidden', !data?.reviewed);
+    $('#cleanup-reopen').disabled = busy || loading;
     body.setAttribute('aria-busy', String(loading || busy));
     $('#cleanup-count').textContent = loading ? 'Loading cleanup marks…' : data ? `${data.marks.length} deletion mark${data.marks.length === 1 ? '' : 's'} · saved locally` : '';
   }
@@ -81,6 +85,7 @@ export function createCleanup({ api, toast, setBusy, isBusy, getEntry, redraw })
       const result = await api(`/api/cleanup?relative=${encodeURIComponent(entry.relative)}`);
       if (ticket !== sequence) return;
       data = result;
+      onUpdate(entry.relative, data);
       if (data.stale || (oldHash && (oldHash !== data.bodyHash || oldRevision !== data.revision))) history = [];
       paint();
     } catch (error) {
@@ -88,20 +93,22 @@ export function createCleanup({ api, toast, setBusy, isBusy, getEntry, redraw })
       key = ''; body.textContent = error.message; toast(error.message);
     } finally { if (ticket === sequence) { loading = false; controls(); } }
   }
-  async function save(marks, { undo = false, reset = false } = {}) {
+  async function save(marks, { undo = false, reset = false, reviewed = false, next = false } = {}) {
     if (!data || loading || isBusy()) return;
-    const previous = data.marks;
+    const previous = { marks: data.marks, reviewed: !!data.reviewed };
+    let succeeded = false;
     const entry = getEntry();
     if (!entry || entry.relative !== relative) return;
     setBusy(true); controls();
     try {
-      data = await api('/api/cleanup', 'POST', { relative: entry.relative, bodyHash: data.bodyHash, revision: data.revision, marks, reset });
+      data = await api('/api/cleanup', 'POST', { relative: entry.relative, bodyHash: data.bodyHash, revision: data.revision, marks, reset, reviewed });
+      succeeded = true; onUpdate(entry.relative, data);
       if (reset) history = [];
       else if (undo) history.pop();
       else { history.push(previous); if (history.length > 32) history.shift(); }
       paint();
     } catch (error) { key = ''; history = []; toast(error.message); await draw(entry, sourceView); }
-    finally { setBusy(false); controls(); }
+    finally { setBusy(false); controls(); if (succeeded && next) advance(); }
   }
   function toggle(event) {
     if (preview || loading || !data || data.stale) return;
@@ -135,9 +142,14 @@ export function createCleanup({ api, toast, setBusy, isBusy, getEntry, redraw })
     active = !active; redraw();
   });
   $('#cleanup-preview').addEventListener('click', () => { preview = !preview; paint(); });
-  const undo = () => { if (history.length && !data?.stale) save(history.at(-1), { undo: true }); };
+  const undo = () => { if (history.length && !data?.stale) save(history.at(-1).marks, { undo: true, reviewed: history.at(-1).reviewed }); };
   $('#cleanup-undo').addEventListener('click', undo);
+  $('#cleanup-done').addEventListener('click', () => {
+    if (data?.reviewed) advance();
+    else if (data) save(data.marks, { reviewed: true, next: true });
+  });
+  $('#cleanup-reopen').addEventListener('click', () => { if (data) save(data.marks, { reviewed: false }); });
   $('#cleanup-reset').addEventListener('click', () => save([], { reset: true }));
   function reset() { key = ''; relative = ''; data = null; history = []; loading = false; painted = null; blocks.clear(); sequence++; }
-  return { draw, undo, updateControls: controls, get active() { return active; }, reset };
+  return { draw, undo, enable() { active = true; }, updateControls: controls, get active() { return active; }, reset };
 }
