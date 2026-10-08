@@ -433,7 +433,7 @@ document.addEventListener('keydown', event => {
   const tag = event.target?.tagName?.toLowerCase();
   if (event.target === $('#audit-note') && event.key === 'Enter') { event.preventDefault(); event.target.blur(); return; }
   if (['input', 'textarea', 'select'].includes(tag) || event.target?.isContentEditable || $('#settings-dialog').open) return;
-  if (event.key === 'Enter' && !event.shiftKey && cleanup.active && !event.target.closest('button, a, [role="button"]')) {
+  if (cleanup.active && !event.shiftKey && (event.key.toLowerCase() === 'd' || (event.key === 'Enter' && !event.target.closest('button, a, [role="button"]')))) {
     if (currentEntry() && !$('#cleanup-done').disabled) { event.preventDefault(); $('#cleanup-done').click(); }
     return;
   }
