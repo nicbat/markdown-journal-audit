@@ -108,6 +108,6 @@ Use the same input folder selected in the app. If the server uses a custom `JOUR
 
 ### Track cleanup progress
 
-The queue shows **Cleanup: reviewed / total** for the current category/filter. Marking blocks saves your work in progress; click **Done & next** when finished with a note. With no marks, the same button reads **Nothing to delete & next**. Both save completion and advance to the next unfinished note in that view, wrapping to earlier unfinished notes as needed.
+The queue shows **Cleanup: reviewed / total** for the current category/filter. Marking blocks saves your work in progress; click **Done & next** when finished with a note. With no marks, the same button reads **Nothing to delete & next**. Both save completion and advance to the next unfinished note in that view, wrapping to earlier unfinished notes as needed. Press **Enter** in Cleanup mode for the same action. While typing or focusing a button/block, Enter keeps its existing behavior; Shift+Enter does not finish a note.
 
 Use **Next unfinished cleanup** to resume the current category, and **Reopen cleanup** to undo a completion without removing marks. Changing marks reopens the note. Completion persists in the local cleanup manifest, including notes with nothing to delete. Earlier marks remain intact and start as unfinished until you explicitly finish reviewing. Body edits invalidate completion; YAML-only status/comment edits do not. Export includes unfinished notes too, applying whatever marks have been saved.

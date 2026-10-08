@@ -433,6 +433,10 @@ document.addEventListener('keydown', event => {
   const tag = event.target?.tagName?.toLowerCase();
   if (event.target === $('#audit-note') && event.key === 'Enter') { event.preventDefault(); event.target.blur(); return; }
   if (['input', 'textarea', 'select'].includes(tag) || event.target?.isContentEditable || $('#settings-dialog').open) return;
+  if (event.key === 'Enter' && !event.shiftKey && cleanup.active && !event.target.closest('button, a, [role="button"]')) {
+    if (currentEntry() && !$('#cleanup-done').disabled) { event.preventDefault(); $('#cleanup-done').click(); }
+    return;
+  }
   if (event.key.toLowerCase() === 'n' && !state.busy && !$('#action-dock').classList.contains('hidden')) { event.preventDefault(); $('#audit-note').focus(); return; }
   if (event.key.toLowerCase() === 'u' || ((event.key === 'z' || event.key === 'Z') && !event.shiftKey)) { event.preventDefault(); if (cleanup.active) cleanup.undo(); else undo(); return; }
   if (/^[1-9]$/.test(event.key)) { const status = state.statuses[Number(event.key) - 1]; if (status) { event.preventDefault(); review(status); } }
