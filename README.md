@@ -56,3 +56,23 @@ The initial request loads a compact journal index. Journal bodies load when sele
 The server caches parsed files and rendered Markdown, and resolves backlinks through path/name lookup maps. Opening the app or pressing **Rescan** checks file timestamps and rebuilds links, reading and parsing changed files only. Save and Undo still check the actual file contents before writing, even when the displayed entry came from a cache.
 
 `npm run benchmark` creates a disposable synthetic vault, launches an isolated server, measures cold indexing, rescanning, detail loading, Save and Undo, then removes its temporary files. Use `npm run benchmark -- 1000` to test 1,000 journals plus 5,000 linked notes. It never accesses your configured vault.
+
+## Review a category or remove a status
+
+Click a **Files by status** card to show only that category. Previous/Next and arrow keys stay within it; the position counter shows where you are within that group. The selected category resumes after a browser reload. Use **All** to return to the whole folder.
+
+To start over on a category, remove its status in **Settings**, then save. This clears `audit_status` from all matching Markdown files under the current journal folder (including subfolders). Other YAML fields, saved `audit_note` comments, and journal body text remain. Canceling settings does not change files. Renaming a status label keeps its existing key and decisions.
+
+Before resetting, originals are copied to `.journal-audit-data/reset-backups/<batch-id>/files/` with a manifest beside them (or the corresponding directory under `JOURNAL_AUDIT_DATA_DIR`). Bulk resets clear the single-action Undo history; use the backup files for recovery. Invalid YAML blocks the reset before writing. If an external edit or disk error interrupts a batch, the error reports how many files changed and where the originals were backed up. Save folder changes separately from status removals.
+
+## Export copies grouped by YAML value
+
+```sh
+npm run export -- "/path/to/journals" "/path/to/journals-sorted"
+# Optionally use another top-level YAML field:
+npm run export -- "/path/to/journals" "/path/to/journals-sorted" category
+```
+
+The default field is `audit_status`. A note marked `keep` becomes `journals-sorted/keep/<original-relative-path>.md`, with `audit_status` removed from the copy. Files without a value go into `unreviewed/`. Review comments and other YAML fields remain; originals are never modified.
+
+Choose a new output folder outside the input folder, with an existing parent directory. Nested paths are preserved so duplicate filenames are safe. Unsafe or conflicting category names receive distinct folder names, listed in the command's output. The script accepts scalar field values and validates every journal before creating output. It copies Markdown files only; attachments are not copied and links are not rewritten, so moved notes may require link adjustments.

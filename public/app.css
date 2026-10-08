@@ -22,3 +22,13 @@
   .status-overview{margin:0 0 10px}
   .status-counts{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
+
+.status-count{border:1px solid transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.status-count:hover{background:white;border-color:#a3c7c3}
+.status-count[aria-pressed=true]{background:var(--teal-pale);border-color:var(--teal)}
+.status-count:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.status-count-name{display:flex;align-items:center;gap:5px;min-width:0;font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+.status-count-value{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+.queue-view{font-size:11px;color:var(--muted);margin:0 0 10px;flex-shrink:0}
+.queue-position{font-size:10px;align-self:center;color:var(--muted);font-variant-numeric:tabular-nums}
+.status-removal-notice{font-size:11px;line-height:1.5;color:var(--muted);margin:12px 0}

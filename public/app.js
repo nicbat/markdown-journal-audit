@@ -21,6 +21,7 @@ const visibleEntries = () => state.visible;
 const currentEntry = () => state.entries[state.current];
 function matchesFilter(entry) {
   const status = entry.metadata.audit_status;
+  if (state.filter.startsWith('status:')) return String(status) === state.filter.slice(7);
   return state.filter === 'all' || (state.filter === 'unreviewed' && !status) ||
     (state.filter === 'skipped' && status === 'skip') || (state.filter === 'completed' && status && status !== 'skip');
 }
@@ -104,10 +105,11 @@ function updateProgress() {
   $('#progress-breakdown').replaceChildren(fragment);
   const categories = document.createDocumentFragment();
   const appendCount = (key, label, count, color) => {
-    const row = el('div', { class: 'status-count', 'data-status': key });
-    const name = el('dt');
+    const filter = key ? `status:${key}` : 'unreviewed';
+    const row = el('button', { class: 'status-count', type: 'button', 'data-status': key, 'data-category-filter': filter, 'aria-pressed': String(state.filter === filter), 'aria-label': `Review ${label} (${count} files)` });
+    const name = el('span', { class: 'status-count-name' });
     name.append(el('i', { class: 'status-dot', style: `background:${color}` }), document.createTextNode(label));
-    row.append(name, el('dd', {}, count.toLocaleString())); categories.append(row);
+    row.append(name, el('span', { class: 'status-count-value' }, count.toLocaleString())); categories.append(row);
   };
   appendCount('', 'Unreviewed', unreviewed, '#87959e');
   for (const [key, count] of counts) {
@@ -154,6 +156,9 @@ function updateFilter(force = false) {
     $('#queue-list').scrollTop = scrollTop; $('#queue-list').scrollLeft = scrollLeft;
   }
   filters.forEach(filter => filter.classList.toggle('active', filter.dataset.filter === state.filter));
+  for (const button of $('#status-counts').children) button.setAttribute('aria-pressed', String(button.dataset.categoryFilter === state.filter));
+  const label = state.filter.startsWith('status:') ? (statusFor(state.filter.slice(7))?.label || state.filter.slice(7)) : ({ all: 'All journals', unreviewed: 'To review', completed: 'Completed', skipped: 'Skipped' }[state.filter]);
+  $('#queue-view').textContent = `${label} · ${state.visible.length} files`;
 }
 function drawLinks(entry) {
   $('#word-count').textContent = entry.wordCount.toLocaleString();
@@ -191,6 +196,7 @@ function updateControls() {
   const ready = entry && state.details.has(entry.relative) && at !== undefined;
   $('#previous').disabled = state.busy || at === undefined || at <= 0;
   $('#next').disabled = state.busy || at === undefined || at >= state.visible.length - 1;
+  $('#queue-position').textContent = at === undefined ? '0 / 0' : `${at + 1} / ${state.visible.length}`;
   $('#undo').disabled = state.busy || !state.undo;
   $('#refresh').disabled = state.busy;
   $('#settings-open').disabled = state.busy;
@@ -267,7 +273,8 @@ async function review(status) {
     state.drafts.delete(entry.relative);
     patchEntry(saved.entry);
     toast(`${status.label} saved`);
-    selectIndex(nextRelative ? state.byRelative.get(nextRelative) : state.current, { force: true });
+    const nextIndex = nextRelative ? state.byRelative.get(nextRelative) : state.current;
+    selectIndex(state.positions.has(nextIndex) ? nextIndex : (state.visible[Math.min(at, state.visible.length - 1)]?.index ?? -1), { force: true });
   } catch (error) {
     toast(error.code === 'CONFLICT' ? 'Journal changed on disk. Rescan before continuing.' : error.message);
     if (error.code === 'CONFLICT') await refresh({ preserve: entry.relative, duringBusy: true });
@@ -300,7 +307,7 @@ async function refresh(options = {}) {
     const response = options.initial ? await api('/api/entries') : await api('/api/reload', 'POST', {});
     state.entries = response.entries; state.statuses = response.statuses;
     const preferred = options.reset ? '' : (currentRelative || resume.current || '');
-    if (!options.reset && !options.preserve && ['all', 'unreviewed', 'completed', 'skipped'].includes(resume.filter)) state.filter = resume.filter;
+    if (!options.reset && !options.preserve && (typeof resume.filter === 'string' && (['all', 'unreviewed', 'completed', 'skipped'].includes(resume.filter) || resume.filter.startsWith('status:')))) state.filter = resume.filter;
     buildQueue(); buildActions();
     let index = state.byRelative.get(preferred);
     if (!state.positions.has(index)) index = state.visible.find(item => !item.entry.metadata.audit_status)?.index ?? state.visible[0]?.index ?? -1;
@@ -328,6 +335,10 @@ function drawStatusEditor(statuses) {
     row.dataset.key = status.key || ''; row.append(label, color, remove); editor.append(row);
   });
   $('#add-status').disabled = statuses.length >= 9;
+  const kept = new Set(statuses.map(status => status.key));
+  const removed = state.statuses.filter(status => !kept.has(status.key));
+  const affected = state.entries.filter(entry => removed.some(status => status.key === entry.metadata.audit_status)).length;
+  $('#status-removal-notice').textContent = removed.length ? `Saving removes ${removed.map(s => s.label).join(', ')} and resets ${affected} matching files in the current journal folder to unreviewed. Review notes are kept; originals are backed up.` : 'Removing a status resets its notes to unreviewed when you save.';
 }
 function collectStatuses() {
   return [...$('#status-editor').querySelectorAll('.status-row')].map((row, index) => {
@@ -339,6 +350,11 @@ function collectStatuses() {
 $('#settings-open').addEventListener('click', openSettings); $('#setup-open').addEventListener('click', openSettings); $('#settings-close').addEventListener('click', () => $('#settings-dialog').close()); $('#settings-cancel').addEventListener('click', () => $('#settings-dialog').close());
 $('#refresh').addEventListener('click', () => refresh()); $('#undo').addEventListener('click', undo);
 $('#queue-list').addEventListener('click', event => { const row = event.target.closest('.queue-item'); if (row) selectIndex(state.byRelative.get(row.dataset.relative)); });
+$('#status-counts').addEventListener('click', event => {
+  const button = event.target.closest('[data-category-filter]');
+  if (!button || state.busy) return;
+  state.filter = button.dataset.categoryFilter; updateFilter(); selectIndex(state.visible[0]?.index ?? -1);
+});
 $('#action-buttons').addEventListener('click', event => { const button = event.target.closest('.status-action'); const status = button && statusFor(button.dataset.key); if (status) review(status); });
 $('#previous').addEventListener('click', () => nextVisible(-1)); $('#next').addEventListener('click', () => nextVisible(1));
 $('#audit-note').addEventListener('input', event => { const entry = currentEntry(); if (entry) state.drafts.set(entry.relative, event.target.value); });
@@ -353,20 +369,25 @@ $('#settings-form').addEventListener('submit', async event => {
   const settingsError = $('#settings-error'); settingsError.textContent = '';
   try {
     const result = await api('/api/config', 'POST', { journalFolder: $('#journal-folder').value.trim(), vaultFolder: $('#vault-folder').value.trim(), statuses: collectStatuses() });
+    const removedStatuses = state.statuses.some(status => !result.statuses.some(s => s.key === status.key));
     const folderChanged = result.journalFolder !== state.config?.journalFolder;
     const vaultChanged = result.vaultFolder !== state.config?.vaultFolder;
     state.config = result; state.statuses = result.statuses; $('#settings-dialog').close();
     if (folderChanged) {
       state.undo = null; state.drafts.clear(); state.filter = 'all';
       await refresh({ preserve: '', reset: true, duringBusy: true });
+    } else if (removedStatuses) {
+      state.undo = null; state.filter = 'unreviewed';
+      await refresh({ reset: true, duringBusy: true });
     } else if (vaultChanged) await refresh({ preserve: currentEntry()?.relative, duringBusy: true });
     else {
       buildActions();
       updateProgress();
+      updateFilter();
       for (const entry of state.entries) updateRow(entry);
       draw();
     }
-    toast('Folder settings saved');
+    toast(removedStatuses ? `${result.reset?.count || 0} notes reset to unreviewed` : 'Folder settings saved');
   } catch (error) { settingsError.textContent = error.message; }
   finally { state.busy = false; submit.disabled = false; updateControls(); }
 });

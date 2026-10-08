@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import MarkdownIt from 'markdown-it';
 import crypto from 'node:crypto';
+import { resetStatuses } from './audit-operations.js';
 import { VaultIndex } from './vault-index.js';
 import taskLists from 'markdown-it-task-lists';
 import { fileURLToPath } from 'node:url';
@@ -41,10 +42,10 @@ async function loadConfig() {
     if (config.vaultFolder) config.vaultFolder = await realFolder(config.vaultFolder);
   } catch { /* first run */ }
 }
-async function persistConfig() {
+async function persistConfig(value = config) {
   await fs.mkdir(dataDir, { recursive: true });
   const tmp = `${configPath}.${process.pid}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(config, null, 2));
+  await fs.writeFile(tmp, JSON.stringify(value, null, 2));
   await fs.rename(tmp, configPath);
 }
 const send = (res, status, data) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(data)); };
@@ -99,9 +100,15 @@ const server = http.createServer(async (req, res) => {
           keys.add(key); return { key, label, color: /^#[0-9a-f]{6}$/i.test(s.color) ? s.color : '#147c78' };
         });
       }
-      Object.assign(config, next);
-      await persistConfig();
-      send(res, 200, { ...config, ready: !!config.journalFolder });
+      const removed = config.statuses.filter(status => !next.statuses.some(s => s.key === status.key)).map(status => status.key);
+      if (removed.length && next.journalFolder !== config.journalFolder) throw new Error('Save the folder change first, then remove statuses from that folder.');
+      const reset = removed.length && config.journalFolder
+        ? await resetStatuses(config.journalFolder, removed, path.join(dataDir, 'reset-backups'))
+        : { count: 0, backup: null };
+      await persistConfig(next);
+      config = next;
+      if (removed.length) { index = null; undoRecords.clear(); }
+      send(res, 200, { ...config, ready: !!config.journalFolder, reset });
     });
     if (url.pathname === '/api/entries' && req.method === 'GET') return await serialized(async () => {
       const current = vaultIndex();
