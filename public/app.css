@@ -32,3 +32,11 @@
 .queue-view{font-size:11px;color:var(--muted);margin:0 0 10px;flex-shrink:0}
 .queue-position{font-size:10px;align-self:center;color:var(--muted);font-variant-numeric:tabular-nums}
 .status-removal-notice{font-size:11px;line-height:1.5;color:var(--muted);margin:12px 0}
+.cleanup-toolbar{margin:0 0 28px;padding:16px;background:#f4f7f8;border:1px solid #d6e2e6;border-radius:6px;font:12px/1.5 system-ui,sans-serif}
+.cleanup-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cleanup-actions strong{margin-right:auto}.cleanup-toolbar p{margin:12px 0 0;color:#536879}
+#cleanup-mode[aria-pressed=true]{background:#d9ece9;color:#126b66}
+.cleanup-selectable [data-cleanup-id]{cursor:pointer;outline-offset:4px;transition:background .1s}
+.cleanup-selectable [data-cleanup-id]:hover,.cleanup-selectable [data-cleanup-id]:focus-visible{outline:1px dashed #b85a54;background:rgba(185,90,81,.05)}
+.cleanup-marked{background:rgba(185,90,81,.12);outline:1px solid #c77971;color:#947572!important;text-decoration:line-through;text-decoration-color:#c77971}
+.cleanup-marked .cleanup-marked{outline:none;background:transparent}

@@ -76,3 +76,32 @@ npm run export -- "/path/to/journals" "/path/to/journals-sorted" category
 The default field is `audit_status`. A note marked `keep` becomes `journals-sorted/keep/<original-relative-path>.md`, with `audit_status` removed from the copy. Files without a value go into `unreviewed/`. Review comments and other YAML fields remain; originals are never modified.
 
 Choose a new output folder outside the input folder, with an existing parent directory. Nested paths are preserved so duplicate filenames are safe. Unsafe or conflicting category names receive distinct folder names, listed in the command's output. The script accepts scalar field values and validates every journal before creating output. It copies Markdown files only; attachments are not copied and links are not rewritten, so moved notes may require link adjustments.
+
+## Cleanup pass
+
+Turn on **Cleanup mode** in the top bar to mark content for removal from exported copies:
+
+- Click a heading to mark just the heading. **Shift-click** it to mark the entire section, through its nested subsections until the next heading of equal or higher level.
+- Click a paragraph, task/list item, quote/callout, code block, table, or divider to mark that block. A list item includes its nested children; a nested child can also be selected on its own.
+- Marked content stays visible with deletion styling. Click again to restore it. Clicking a block covered by a larger selection restores that containing selection; any independent marks still remain.
+- Focus a block with Tab and press Enter or Space to mark it (Shift also selects a heading's section).
+- **Undo mark**, **U**, or **Z** reverses the most recent cleanup action on the current note, with up to 32 steps. The top-bar **Undo** button still reverses the last status review. Cleanup undo history resets on navigation, rescan, or reload, but saved marks remain and can be toggled off.
+- **Preview cleaned journal** shows how the body will read after export. **View source** shows the original file, not the cleaned preview.
+
+Each successful click saves marks locally in `.journal-audit-data/cleanup/<folder-hash>.json` (or under `JOURNAL_AUDIT_DATA_DIR`). They are separate from the Markdown files and survive browser/server restarts. Retain that data directory alongside your app. Marks belong to the selected journal folder and each file's relative path; moving or renaming files does not migrate marks.
+
+Cleanup checks the body independently of YAML, so setting statuses or review comments does not invalidate marks. An external body edit makes existing marks stale: rescan to see the warning, then use **Discard outdated marks** and review the changed note again. Export refuses stale marks before creating any output.
+
+### One export for both passes
+
+The existing export command now applies cleanup marks, sorts the copies into status folders, and removes `audit_status` from the copies. It preserves all other metadata and unmarked source text. No original journal is modified.
+
+```sh
+# Validate the planned export and show counts without creating files:
+npm run export -- "/path/to/journals" "/path/to/new-output" --dry-run
+
+# Create the cleaned, categorized copies:
+npm run export -- "/path/to/journals" "/path/to/new-output"
+```
+
+Use the same input folder selected in the app. If the server uses a custom `JOURNAL_AUDIT_DATA_DIR`, set that same environment variable for the command so it finds your marks. Output reports the number of files cleaned as well as the category totals. Attachments are still not copied and links are not rewritten.

@@ -13,7 +13,7 @@
     <header class="topbar">
       <a class="brand" href="/" aria-label="Journal Audit home"><span class="brand-mark">J</span><span>Journal Audit</span></a>
       <div class="top-context" id="folder-label">Choose a journal folder to begin</div>
-      <div class="top-actions"><button class="icon-button" id="undo" title="Undo last review action" disabled>↶ <span>Undo</span></button><button class="icon-button" id="settings-open" title="Folder and status settings">⚙ <span>Settings</span></button></div>
+      <div class="top-actions"><button class="icon-button" id="cleanup-mode" aria-pressed="false">Cleanup mode</button><button class="icon-button" id="undo" title="Undo last review action" disabled>↶ <span>Undo</span></button><button class="icon-button" id="settings-open" title="Folder and status settings">⚙ <span>Settings</span></button></div>
     </header>
     <main class="workspace">
       <aside class="queue-panel" aria-label="Journal queue">
@@ -29,6 +29,11 @@
         <article class="journal-sheet hidden" id="journal-sheet">
           <div class="journal-head"><div class="journal-date" id="journal-date"></div><div class="journal-title-row"><h2 id="journal-title"></h2><button class="source-toggle" id="source-toggle">View source</button></div><div class="journal-path" id="journal-path"></div></div>
           <div class="notice hidden" id="file-error"></div>
+          <section id="cleanup-toolbar" class="cleanup-toolbar hidden" aria-label="Cleanup controls">
+            <div class="cleanup-actions"><strong id="cleanup-count"></strong><button id="cleanup-undo" class="secondary-button">Undo mark · U</button><button id="cleanup-preview" class="secondary-button">Preview cleaned journal</button></div>
+            <p id="cleanup-message" role="status"></p><button id="cleanup-reset" class="secondary-button hidden">Discard outdated marks</button>
+          </section>
+          <div class="markdown-body hidden" id="cleanup-body"></div>
           <div class="markdown-body" id="markdown-body"></div>
           <pre class="source-body hidden" id="source-body"></pre>
         </article>

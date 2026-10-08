@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import MarkdownIt from 'markdown-it';
 import crypto from 'node:crypto';
+import { CleanupStore } from './cleanup.js';
 import { resetStatuses } from './audit-operations.js';
 import { VaultIndex } from './vault-index.js';
 import taskLists from 'markdown-it-task-lists';
@@ -21,6 +22,7 @@ md.renderer.rules.wikilink = (tokens, idx) => { const { target, label } = tokens
 md.renderer.rules.image = (tokens, idx) => md.utils.escapeHtml(tokens[idx].content || tokens[idx].attrGet('alt') || '');
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.JOURNAL_AUDIT_DATA_DIR || path.join(here, '.journal-audit-data');
+const cleanup = new CleanupStore(dataDir, md);
 const configPath = path.join(dataDir, 'config.json');
 const defaultStatuses = [
   { key: 'keep', label: 'Keep', color: '#19746e' },
@@ -116,6 +118,13 @@ const server = http.createServer(async (req, res) => {
     });
     if (url.pathname === '/api/entry' && req.method === 'GET') return await serialized(async () => {
       send(res, 200, await vaultIndex().detail(url.searchParams.get('relative')));
+    });
+    if (url.pathname === '/api/cleanup' && req.method === 'GET') return await serialized(async () => {
+      send(res, 200, await cleanup.detail(baseFolder(), url.searchParams.get('relative')));
+    });
+    if (url.pathname === '/api/cleanup' && req.method === 'POST') return await serialized(async () => {
+      const payload = await body(req);
+      send(res, 200, await cleanup.detail(baseFolder(), payload.relative, payload));
     });
     if (url.pathname === '/api/action' && req.method === 'POST') return await serialized(async () => {
       const payload = await body(req);

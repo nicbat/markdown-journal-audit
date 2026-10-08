@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
+import { exportByField } from '../audit-operations.js';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -41,8 +42,21 @@ test('summary/detail API, compact undo, cached conflict checks and external refr
   assert.equal('source' in response.data.entries[0], false);
   assert.equal('rendered' in response.data.entries[0], false);
   const before = (await api('/api/entry?relative=day.md')).data;
+  const cleanupBefore = (await api('/api/cleanup?relative=day.md')).data;
+  const cleanupSaved = await api('/api/cleanup', { relative: 'day.md', bodyHash: cleanupBefore.bodyHash, revision: cleanupBefore.revision, marks: [{ id: cleanupBefore.blocks[0].id, section: false }] });
+  assert.equal(cleanupSaved.status, 200);
+  assert.equal(cleanupSaved.data.revision, 1);
+  assert.equal((await api('/api/cleanup', { relative: 'day.md', bodyHash: cleanupBefore.bodyHash, revision: 0, marks: [] })).status, 409);
   const saved = (await api('/api/action', { relative: 'day.md', hash: before.hash, status: 'keep', note: 'A note' })).data;
   assert.equal(saved.entry.metadata.audit_status, 'keep');
+  assert.equal((await api('/api/cleanup?relative=day.md')).data.stale, false);
+  const exported = path.join(root, 'exported');
+  await exportByField(journals, exported, 'audit_status', { dataDir: config });
+  const exportedText = await fs.readFile(path.join(exported, 'keep/day.md'), 'utf8');
+  assert.ok(!exportedText.includes('# Long journal'));
+  assert.ok(exportedText.includes('A memory worth preserving.'));
+  assert.ok(!exportedText.includes('audit_status'));
+
   assert.equal(typeof saved.undoToken, 'string');
   assert.equal('undo' in saved, false);
   assert.equal((await api('/api/action', { relative: 'day.md', hash: before.hash, status: 'delete' })).status, 409);
@@ -51,6 +65,11 @@ test('summary/detail API, compact undo, cached conflict checks and external refr
   assert.equal(undone.status, 200); assert.equal(undone.data.entry.source, original);
   await fs.appendFile(file, '\nExternal change.');
   assert.equal((await api('/api/action', { relative: 'day.md', hash: undone.data.entry.hash, status: 'delete' })).status, 409);
+  const staleCleanup = (await api('/api/cleanup?relative=day.md')).data;
+  assert.equal(staleCleanup.stale, true);
+  assert.equal(staleCleanup.preview, null);
+  assert.equal((await api('/api/cleanup', { relative: 'day.md', bodyHash: staleCleanup.bodyHash, revision: staleCleanup.revision, marks: [] })).status, 409);
+  assert.equal((await api('/api/cleanup', { relative: 'day.md', bodyHash: staleCleanup.bodyHash, revision: staleCleanup.revision, marks: [], reset: true })).status, 200);
   await fs.writeFile(path.join(journals, 'new.md'), '# New entry');
   response = await api('/api/entries');
   assert.equal(response.data.entries.length, 2);

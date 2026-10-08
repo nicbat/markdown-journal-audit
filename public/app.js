@@ -1,3 +1,4 @@
+import { createCleanup } from '/assets/cleanup.js';
 const $ = selector => document.querySelector(selector);
 const el = (tag, attrs = {}, text = '') => {
   const node = document.createElement(tag);
@@ -41,6 +42,7 @@ function saveResume() {
 }
 function resetDetails() {
   state.generation++;
+  cleanup.reset();
   for (const request of state.pending.values()) request.controller.abort();
   state.pending.clear(); state.details.clear(); state.renderedKey = '';
   clearTimeout(state.prefetchTimer);
@@ -202,6 +204,7 @@ function updateControls() {
   $('#settings-open').disabled = state.busy;
   for (const button of $('#action-buttons').children) button.disabled = state.busy || !ready || !!entry.error || !entry.hash;
   $('#audit-note').disabled = state.busy || !ready;
+  cleanup.updateControls();
 }
 function draw() {
   const entry = currentEntry();
@@ -214,6 +217,7 @@ function draw() {
   $('#folder-label').textContent = state.config?.journalFolder || 'Choose a journal folder to begin';
   updateControls();
   if (empty) {
+    cleanup.draw(null, state.source);
     const hasEntries = state.entries.length > 0;
     $('#empty-state h2').textContent = hasEntries ? 'No journals in this view' : 'Make room for a closer read';
     $('#empty-state p').textContent = hasEntries ? 'Change the queue filter to see more journals.' : 'Choose the folder with your Markdown journals. The audit status is saved in each file’s YAML frontmatter.';
@@ -233,7 +237,8 @@ function draw() {
     drawLinks(detail || entry);
     $('#audit-note').value = state.drafts.get(entry.relative) ?? entry.metadata.audit_note ?? '';
   }
-  $('#markdown-body').classList.toggle('hidden', state.source);
+  $('#markdown-body').classList.toggle('hidden', state.source || cleanup.active);
+  cleanup.draw(detail || entry, state.source);
   $('#source-body').classList.toggle('hidden', !state.source);
   $('#source-toggle').textContent = state.source ? 'View reading page' : 'View source';
   $('#file-error').classList.toggle('hidden', !entry.error);
@@ -397,11 +402,12 @@ document.addEventListener('keydown', event => {
   if (event.target === $('#audit-note') && event.key === 'Enter') { event.preventDefault(); event.target.blur(); return; }
   if (['input', 'textarea', 'select'].includes(tag) || event.target?.isContentEditable || $('#settings-dialog').open) return;
   if (event.key.toLowerCase() === 'n' && !state.busy && !$('#action-dock').classList.contains('hidden')) { event.preventDefault(); $('#audit-note').focus(); return; }
-  if (event.key.toLowerCase() === 'u' || ((event.key === 'z' || event.key === 'Z') && !event.shiftKey)) { event.preventDefault(); undo(); return; }
+  if (event.key.toLowerCase() === 'u' || ((event.key === 'z' || event.key === 'Z') && !event.shiftKey)) { event.preventDefault(); if (cleanup.active) cleanup.undo(); else undo(); return; }
   if (/^[1-9]$/.test(event.key)) { const status = state.statuses[Number(event.key) - 1]; if (status) { event.preventDefault(); review(status); } }
   if (event.key === 'ArrowLeft') { event.preventDefault(); nextVisible(-1); }
   if (event.key === 'ArrowRight') { event.preventDefault(); nextVisible(1); }
 });
+const cleanup = createCleanup({ api, toast, getEntry: currentEntry, isBusy: () => state.busy, setBusy: value => { state.busy = value; updateControls(); }, redraw: draw });
 (async function init() {
   try {
     state.config = await api('/api/config'); state.statuses = state.config.statuses;

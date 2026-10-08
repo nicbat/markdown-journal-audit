@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { readCleanupManifest, cleanupSource } from './cleanup.js';
 import { parseMetadata, scanMarkdown, resolveSafeFile, realFolder, isInside, atomicWrite, hashText } from './journal.js';
 
 export function withoutField(source, field = 'audit_status') {
@@ -49,14 +51,16 @@ export async function resetStatuses(folder, statuses, backupRoot) {
   return { count, backup };
 }
 
-export async function exportByField(input, output, field = 'audit_status') {
+export async function exportByField(input, output, field = 'audit_status', options = {}) {
   if (!field || typeof field !== 'string') throw new Error('Specify a YAML field name.');
   const root = await realFolder(input);
   const destination = path.join(await fs.realpath(path.dirname(path.resolve(output))), path.basename(path.resolve(output)));
   if (isInside(root, destination)) throw new Error('Choose an output folder outside the input folder.');
   try { await fs.lstat(destination); throw new Error('The output folder already exists. Choose a new folder.'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const planned = [], groups = new Map(), names = new Map();
+  const dataDir = options.dataDir ?? process.env.JOURNAL_AUDIT_DATA_DIR ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '.journal-audit-data');
+  const cleanup = await readCleanupManifest(dataDir, root);
+  const planned = [], groups = new Map(), names = new Map(), counts = new Map();
   for (const relative of await scanMarkdown(root)) {
     const source = await fs.readFile(await resolveSafeFile(root, relative), 'utf8');
     let metadata;
@@ -78,9 +82,15 @@ export async function exportByField(input, output, field = 'audit_status') {
       while (names.has(group.toLowerCase())) group = `${base}-${suffix++}`;
       groups.set(key, group); names.set(group.toLowerCase(), key);
     }
-    planned.push({ relative, group, content: withoutField(source, field) });
+    let cleaned;
+    try { cleaned = cleanupSource(withoutField(source, field), Object.hasOwn(cleanup.files, relative) ? cleanup.files[relative] : null); }
+    catch (error) { throw new Error(`${relative}: ${error.message}`); }
+    planned.push({ relative, group, content: cleaned, cleaned: !!cleanup.files[relative]?.marks?.length });
+    counts.set(group, (counts.get(group) ?? 0) + 1);
   }
   // Preflight all YAML before creating output; wx never overwrites a copy.
+  const result = { output: destination, count: planned.length, cleanedCount: planned.filter(p => p.cleaned).length, dryRun: !!options.dryRun, groups: [...groups].map(([value, folder]) => ({ value, folder, count: counts.get(folder) })) };
+  if (options.dryRun) return result;
   await fs.mkdir(destination);
   try {
     for (const item of planned) {
@@ -89,5 +99,5 @@ export async function exportByField(input, output, field = 'audit_status') {
       await fs.writeFile(file, item.content, { flag: 'wx' });
     }
   } catch (error) { throw new Error(`Export stopped; partial copies remain at ${destination}: ${error.message}`); }
-  return { output: destination, count: planned.length, groups: [...groups].map(([value, folder]) => ({ value, folder, count: planned.filter(p => p.group === folder).length })) };
+  return result;
 }
